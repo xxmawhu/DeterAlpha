@@ -17,19 +17,18 @@ using std::endl;
 
 ClassImp(RooDeterAlphaPdf)
 
-    
-RooDeterAlphaPdf::RooDeterAlphaPdf(const char *name, const char *title,
-    RooAbsReal& _CosTheta,
-    RooArgList & parameters, const TString& PHSPdat, int num, int store):
-    RooAbsPdf(name, title),
-    CosTheta("CosTheta", "CosTheta", this, _CosTheta), 
-    _ParameterCol("ParameterCol", "", this) {
+RooDeterAlphaPdf::RooDeterAlphaPdf(const char* name, const char* title,
+                                   RooAbsReal& _CosTheta,
+                                   RooArgList& parameters,
+                                   const TString& PHSPdat, int num, int store)
+    : RooAbsPdf(name, title),
+      CosTheta("CosTheta", "CosTheta", this, _CosTheta),
+      _ParameterCol("ParameterCol", "", this) {
     _ParameterCol.add(parameters);
     if (_ParameterCol.getSize() < 1) {
-        cout << "Error, Too little parameters! At least 1 parameters are expected."
-         << endl;
+        cout << "Error, Too little parameters! At least 1 parameters are "
+                "expected." << endl;
         exit(1);
-
     }
     _parsItr = _ParameterCol.createIterator();
     _PHSPDat = PHSPdat;
@@ -47,19 +46,21 @@ RooDeterAlphaPdf::RooDeterAlphaPdf(const char *name, const char *title,
     }
 
     m_Nmc = num;
+    _mcCostheta = new Double_t[m_Nmc];
     cout << "the total num: " << m_Nmc << endl;
     _IsIntFF = new Int_t[1];
     _IsIntFF[0] = false;
 }
 
-
-RooDeterAlphaPdf::RooDeterAlphaPdf(const RooDeterAlphaPdf& other, const char* name):
-    RooAbsPdf(other, name),
-    CosTheta("CosTheta", this, other.CosTheta),
-    _ParameterCol("ParameterCol", this, other._ParameterCol) {
+RooDeterAlphaPdf::RooDeterAlphaPdf(const RooDeterAlphaPdf& other,
+                                   const char* name)
+    : RooAbsPdf(other, name),
+      CosTheta("CosTheta", this, other.CosTheta),
+      _ParameterCol("ParameterCol", this, other._ParameterCol) {
     _parsItr = _ParameterCol.createIterator();
     m_Nmc = other.m_Nmc;
     _PHSPDat = other._PHSPDat;
+    _mcCostheta = new double[m_Nmc];
     _mcCostheta = other._mcCostheta;
     _weight = other._weight;
     initFF = other.initFF;
@@ -67,7 +68,6 @@ RooDeterAlphaPdf::RooDeterAlphaPdf(const RooDeterAlphaPdf& other, const char* na
     _storeInt = other._storeInt;
     _test = other._test;
 }
-
 
 Double_t RooDeterAlphaPdf::evaluate() const {
     Double_t pdf = calEva(CosTheta);
@@ -77,8 +77,9 @@ Double_t RooDeterAlphaPdf::evaluate() const {
     return pdf;
 }
 
-
-Int_t RooDeterAlphaPdf::getAnalyticalIntegral(RooArgSet& allVars, RooArgSet& analVars, const char* rangeName)const {
+Int_t RooDeterAlphaPdf::getAnalyticalIntegral(RooArgSet& allVars,
+                                              RooArgSet& analVars,
+                                              const char* rangeName) const {
     RooArgSet theSet;
 
     theSet.add(RooArgSet(CosTheta.arg()));
@@ -89,12 +90,12 @@ Int_t RooDeterAlphaPdf::getAnalyticalIntegral(RooArgSet& allVars, RooArgSet& ana
     return 1;
 }
 
-
-Double_t RooDeterAlphaPdf::analyticalIntegral (Int_t code, const char* rangeName)const {
-    assert (code == 1);
+Double_t RooDeterAlphaPdf::analyticalIntegral(Int_t code,
+                                              const char* rangeName) const {
+    assert(code == 1);
     Double_t sum = 0;
     _parsItr->Reset();
-    RooRealVar *aPara(0);
+    RooRealVar* aPara(0);
 
     aPara = (RooRealVar*)_parsItr->Next();
     Double_t alphaPsi = aPara->getVal();
@@ -102,116 +103,31 @@ Double_t RooDeterAlphaPdf::analyticalIntegral (Int_t code, const char* rangeName
     if (!_IsIntFF[0]) {
         this->integrateFF();
     }
-
-    double integrate = 0.0, coeff = 0.0;
-    for (int i = 1; i <= 2; ++i) {
-        coeff = paraterm(alphaPsi,  i);
-        integrate += coeff * initFF[i-1];
-    }
-    return integrate;
+    return initFF[0] + alphaPsi * initFF[1];
 }
 
+void RooDeterAlphaPdf::setPHSPDat(const TString& dat) { _PHSPDat = dat; }
 
-void RooDeterAlphaPdf::project(const char* fname) {
-    _parsItr->Reset();
-
-    // alphaPsi, phi, alphaL, alphaLbar
-    RooRealVar *aPara(0);
-    while ( (aPara = reinterpret_cast<RooRealVar*>(_parsItr->Next())) != 0 ) {
-        cout << aPara->GetName() << " = " << aPara->getVal() << endl;
-    }
-
-    // initialize();
-    TFile f(fname, "recreate");
-    TTree t("project", "the project of fit result");
-
-    Double_t eva, weight;
-    Double_t m_cosTheta;
-
-    t.Branch("eva", &eva, "eva/D");
-    t.Branch("weight", &weight, "weight/D");
-    t.Branch("cosTheta", &m_cosTheta, "cosTheta/D");
-
-    fstream fin(_PHSPDat, std::ios::in);
-    if (!fin.good()) {
-        cout << "Please check the input file: " << _PHSPDat << endl;
-        exit(0);
-    }
-
-    int Nevents = 0;
-    
-    Double_t max_amp = this->MaxAmp();
-    while (1) {
-        fin >> m_cosTheta  >> weight;
-        if (fin.eof() || Nevents > m_Nmc) {
-            break;
-        }
-
-        // compute the amplitude
-        eva = calEva(m_cosTheta);
-        if (gRandom->Uniform(0, 1) > eva/max_amp) continue;
-        Nevents += 1;
-
-        t.Fill();
-    }
-
-    fin.close();
-    t.Write();
-    f.Close();
-}
-
-
-void RooDeterAlphaPdf::setPHSPDat(const TString &dat) {
-    _PHSPDat = dat;
-}
-
-
-inline  RooDeterAlphaPdf::~RooDeterAlphaPdf() {
+inline RooDeterAlphaPdf::~RooDeterAlphaPdf() {
     // delete []_weight;
 }
 
-
 Double_t RooDeterAlphaPdf::calEva(double cosTheta) const {
-    // order of P4: (px, py, pz, E)
     _parsItr->Reset();
-    // alphaPsi, phi, alphaL, alphaLbar
-    RooRealVar *aPara(0);
-    aPara = (RooRealVar*)_parsItr->Next();
+    RooRealVar* aPara = (RooRealVar*)_parsItr->Next();
     Double_t alphaPsi = aPara->getVal();
-
-    Double_t parsCol[6] = {alphaPsi};
-
-    return calAmpsq(parsCol, cosTheta);
-}
-
-void RooDeterAlphaPdf::NotStoreIntF() {
-    _storeInt[0] = false;
-}
-
-
-Double_t RooDeterAlphaPdf::calAmpsq(const Double_t parsCol[1], double cosTheta) 
-         const {
-    // the order of parameters:
-    // alphaPsi 
-    Double_t alphaPsi = parsCol[0];
-
-    double amps = 0.0;
-    double parValtmp = 0.0, varValtmp = 0.0;
-
-    for (int i = 1; i <= 2; ++i) {
-        parValtmp = paraterm(alphaPsi, i);
-        varValtmp = varterm(cosTheta, i);
-        amps += parValtmp * varValtmp;
-    }
+    Double_t amps = 1 + alphaPsi * cosTheta * cosTheta;
     return amps;
 }
 
+void RooDeterAlphaPdf::NotStoreIntF() { _storeInt[0] = false; }
+
 void RooDeterAlphaPdf::integrateFF() const {
     // initial with 0
-    for (Int_t i = 0; i < 28; ++i) {
+    for (Int_t i = 0; i < 2; ++i) {
         initFF[i] = 0;
     }
-    
+
     // if store the integral value, open .initFF then read the value
     fstream f(".initFF", std::ios::in);
     if (f.good() && _storeInt[0]) {
@@ -226,90 +142,75 @@ void RooDeterAlphaPdf::integrateFF() const {
     }
 
     // for the case:
-    // 1) fisrt do Integral 
+    // 1) fisrt do Integral
     // 2) not recovers the integral result from .initFF
     cout << "Doing Integral now..." << endl;
 
     Double_t weight;
 
-    FILE *fp;
+    FILE* fp;
     // open the PHSP file then do integral
-    if ((fp=fopen(_PHSPDat, "r")) == NULL) {
-        std::cout << "integrateFF:: can't open input file"
-            << _PHSPDat << std::endl;
+    if ((fp = fopen(_PHSPDat, "r")) == NULL) {
+        std::cout << "integrateFF:: can't open input file" << _PHSPDat
+                  << std::endl;
         exit(0);
     }
 
     Int_t Ntotal = 0;
     const Double_t PI = 3.1415926535897932385;
 
-
     Double_t cosT;
-    while (fscanf(fp, "%lf%lf%lf%lf\n%lf%lf%lf%lf\n%lf%lf%lf%lf\n%lf%lf%lf%lf\n%lf%lf%lf%lf%lf\n", // NOLINT
-                &cosT, &weight) != EOF) {
+    while (fscanf(fp, "%lf%lf\n", &cosT, &weight) != EOF) {
         if (Ntotal >= 1e8) break;
-
-        
-        for (int i = 0; i<2; ++i) {
-              initFF[i] += varterm(cosT, i+1)*weight;
+        for (int i = 0; i < 2; ++i) {
+            initFF[i] += varterm(cosT, i + 1) * weight;
         }
-
         Ntotal++;
     }
     fclose(fp);
 
-    double  InitFF0 = initFF[0];
+    double InitFF0 = initFF[0];
     for (Int_t i = 0; i < 2; i++) {
-        initFF[i] = initFF[i]/InitFF0;
+        initFF[i] = initFF[i] / InitFF0;
     }
 
-    // store the result to .initFF
     ofstream outdat(".initFF");
     outdat.precision(16);
     outdat.setf(std::ios::fixed);
 
     cout << "store the integrate result: ";
     for (Int_t i = 0; i < 2; ++i) {
-        // initFF[i] = initFF[i]/Ntotal;
         outdat << initFF[i] << "  " << endl;
         cout << "FF[" << i << "] = " << initFF[i] << endl;
     }
     outdat.close();
-    
     _IsIntFF[0] = true;
     return;
 }
 
-
 double RooDeterAlphaPdf::MaxAmp() {
-    Double_t mLambda = 1.115683;
-    Double_t mSigma = 1.192642;
-    Double_t mProton = 0.938272081;
-    Double_t mPion = 0.13957061;
-
-
     double weight;
     double cosTheta;
     double Max;
-    for (int ii = 0; ii< 1e4; ii++) {
+    for (int ii = 0; ii < 1e4; ii++) {
         cosTheta = gRandom->Uniform(-1, 1);
         Double_t amp = calEva(cosTheta);
         if (amp > Max) {
             Max = amp;
         }
     }
-    return 1.08*Max;
+    return 1.08 * Max;
 }
 
 void RooDeterAlphaPdf::DIYMC(const Int_t& events, const TString& fout,
-        const Int_t &sed, const Int_t &type) {
+                             const Int_t& sed, const Int_t& type) {
     TRandom3 random;
     random.SetSeed(sed);
     ofstream outdat(fout);
     outdat.precision(8);
     outdat.setf(std::ios::fixed);
 
-    Double_t max = this->MaxAmp();
+    Double_t Max = this->MaxAmp();
 
     int n = 0;
     double cosTheta;
@@ -317,12 +218,61 @@ void RooDeterAlphaPdf::DIYMC(const Int_t& events, const TString& fout,
         cosTheta = random.Uniform(-1, 1);
         Double_t amp = calEva(cosTheta);
         if (type != 0) {
-            if (random.Uniform (0, max) >amp) continue;
+            if (random.Uniform(0, Max) > amp) continue;
         }
-        outdat << cosTheta << "  1.00 " <<endl ;
+        outdat << cosTheta << "  1.00 " << endl;
         n++;
 
         if (n >= events) break;
     }
     outdat.close();
+}
+
+void RooDeterAlphaPdf::project(const char* fname) {
+    _parsItr->Reset();
+
+    // alphaPsi
+    RooRealVar* aPara(0);
+    while ((aPara = reinterpret_cast<RooRealVar*>(_parsItr->Next())) != 0) {
+        cout << aPara->GetName() << " = " << aPara->getVal() << endl;
+    }
+
+    TFile f(fname, "recreate");
+    TTree t("project", "the project of fit result");
+
+    Double_t eva, weight;
+    Double_t m_cosTheta;
+
+    TH1F hcos("hcos", "", 30, -1, 1);
+    t.Branch("weight", &weight, "weight/D");
+    t.Branch("cosTheta", &m_cosTheta, "cosTheta/D");
+
+    fstream fin(_PHSPDat, std::ios::in);
+    if (!fin.good()) {
+        cout << "Please check the input file: " << _PHSPDat << endl;
+        exit(0);
+    }
+
+    int Nevents = 0;
+
+    Double_t max_amp = this->MaxAmp();
+    while (1) {
+        fin >> m_cosTheta >> weight;
+        if (fin.eof() || Nevents > m_Nmc) {
+            break;
+        }
+
+        // compute the amplitude
+        eva = calEva(m_cosTheta);
+        if (gRandom->Uniform(0, 1) > eva / max_amp) continue;
+        Nevents += 1;
+
+        hcos.Fill(m_cosTheta, weight);
+        t.Fill();
+    }
+
+    fin.close();
+    t.Write();
+    hcos.Write();
+    f.Close();
 }

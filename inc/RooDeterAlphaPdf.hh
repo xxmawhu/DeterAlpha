@@ -3,7 +3,7 @@
 
 #include <math.h>
 #include <iomanip>
-#include <iostream> 
+#include <iostream>
 #include <fstream>
 #include "TComplex.h"
 #include "TString.h"
@@ -41,52 +41,51 @@
 #endif
 #include <string>
 class RooDeterAlphaPdf : public RooAbsPdf {
-    public:
-        RooDeterAlphaPdf(const char *name, const char *title,
-                RooAbsReal& _CosTheta,
-                RooArgList &params,
-                const TString &PHSPDat, int num = 6e6, int store = 1);
-        RooDeterAlphaPdf(const RooDeterAlphaPdf& other, const char* name=0);
-        virtual TObject* clone(const char* newname) const { return new RooDeterAlphaPdf(*this,newname);}
-        inline virtual ~RooDeterAlphaPdf();
-        void project(const char* fname);
-        void setPHSPDat(const TString &dat);
-        Double_t calEva(Double_t cosT) const;
+   public:
+    RooDeterAlphaPdf(const char* name, const char* title, RooAbsReal& _CosTheta,
+                     RooArgList& params, const TString& PHSPDat, int num = 6e6,
+                     int store = 1);
+    RooDeterAlphaPdf(const RooDeterAlphaPdf& other, const char* name = 0);
+    virtual TObject* clone(const char* newname) const {
+        return new RooDeterAlphaPdf(*this, newname);
+    }
+    inline virtual ~RooDeterAlphaPdf();
+    void project(const char* fname);
+    void setPHSPDat(const TString& dat);
+    Double_t calEva(Double_t cosT) const;
 
-        void test();
-        void DIYMC(const Int_t& events, const TString& fout, 
-                const Int_t &sed, const Int_t & type=1);
-        Double_t calAmpsq( const Double_t parsCol[2], double cosT) const;
-        void integrateFF() const;
-        void NotStoreIntF();
-    protected:
-        RooRealProxy CosTheta; 
-        Double_t evaluate() const;
+    void test();
+    void DIYMC(const Int_t& events, const TString& fout, const Int_t& sed,
+               const Int_t& type = 1);
+    void integrateFF() const;
+    void NotStoreIntF();
 
-        Int_t getAnalyticalIntegral(RooArgSet& allVars, RooArgSet& analVars, const char* rangeName=0) const;
-        Double_t analyticalIntegral (Int_t code, const char* rangeName) const;
-    private:
-        //======= sad ... =====
-        RooListProxy _ParameterCol;
-        //RooArgList &parameters;
-        TIterator *_parsItr;
-        void initialize();
-        TString  _PHSPDat;
+   protected:
+    RooRealProxy CosTheta;
+    Double_t evaluate() const;
 
-        Double_t *_mcCostheta;
-        Double_t *_weight;
-        Double_t *initFF;
+    Int_t getAnalyticalIntegral(RooArgSet& allVars, RooArgSet& analVars,
+                                const char* rangeName = 0) const;
+    Double_t analyticalIntegral(Int_t code, const char* rangeName) const;
 
-        bool _test;
+   private:
+    RooListProxy _ParameterCol;
+    TIterator* _parsItr;
+    void initialize();
+    TString _PHSPDat;
 
-        Int_t *_storeInt;
+    Double_t* _mcCostheta;
+    Double_t* _weight;
+    Double_t* initFF;
 
-        Int_t *_IsIntFF;
-        Int_t m_Nmc;
-        double MaxAmp();
-        double paraterm(double alphaPsi, int i) const;
-        double varterm(double thetaSigma, int i) const;
-        ClassDef(RooDeterAlphaPdf, 1)
+    bool _test;
+
+    Int_t* _storeInt;
+    Int_t* _IsIntFF;
+    Int_t m_Nmc;
+    double MaxAmp();
+    double paraterm(double alphaPsi, int i) const;
+    double varterm(double thetaSigma, int i) const;
+    ClassDef(RooDeterAlphaPdf, 1)
 };
 #endif
-

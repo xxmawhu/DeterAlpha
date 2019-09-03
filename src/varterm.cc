@@ -4,7 +4,7 @@ using TMath::Sin;
 using TMath::Cos;
 using TMath::Sqrt;
 using TMath::Power;
-double RooDeterAlphaPdf::varterm(double Costheta, int i) const{
+double RooDeterAlphaPdf::varterm(double Costheta, int i) const {
     if (i == 1) {
         return 1;
     }
